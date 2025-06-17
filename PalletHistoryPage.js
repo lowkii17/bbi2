@@ -1,7 +1,20 @@
 window.addEventListener('DOMContentLoaded', function() {
   const historyDiv = document.getElementById("PalletHistoryTable");
   const globalSearchInput = document.getElementById("globalSearch");
-  let shipments = JSON.parse(localStorage.getItem('submittedPallets') || '[]');
+  let shipments = [];
+
+  // Fetch shipments from backend instead of localStorage
+  function fetchShipmentsAndRender(globalFilter = "") {
+    fetch('http://192.168.200.196:3001/get-shipments')
+      .then(res => res.json())
+      .then(data => {
+        shipments = data;
+        renderPallets(globalFilter);
+      })
+      .catch(() => {
+        historyDiv.innerHTML = "<p style='color:white;text-align:center;'>Failed to load pallet history from server.</p>";
+      });
+  }
 
   function renderPallets(globalFilter = "") {
     historyDiv.innerHTML = "";
@@ -126,14 +139,20 @@ window.addEventListener('DOMContentLoaded', function() {
         });
       });
 
-      // Delete delivery function
+      // Delete delivery function (calls backend)
       deleteDeliveryBtn.addEventListener("click", function() {
-        historyDiv.removeChild(deliveryDiv);
-        // Remove from localStorage
-        let shipments = JSON.parse(localStorage.getItem('submittedPallets') || '[]');
-        shipments = shipments.filter(s => s.mmShipmentId !== shipment.mmShipmentId);
-        localStorage.setItem('submittedPallets', JSON.stringify(shipments));
-        renderPallets(globalSearchInput.value.trim());
+        fetch(`http://192.168.200.196:3001/delete-shipment/${shipment.mmShipmentId}`, {
+          method: 'DELETE'
+        })
+        .then(() => {
+          // Remove from UI after successful delete
+          historyDiv.removeChild(deliveryDiv);
+          // Refresh the list
+          fetchShipmentsAndRender(globalSearchInput.value.trim());
+        })
+        .catch(() => {
+          alert("Failed to delete delivery from server.");
+        });
       });
 
       historyDiv.appendChild(deliveryDiv);
@@ -145,10 +164,10 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 
   // Initial render
-  renderPallets();
+  fetchShipmentsAndRender();
 
   // Global search handler
   globalSearchInput.addEventListener("input", function() {
-    renderPallets(this.value);
+    fetchShipmentsAndRender(this.value);
   });
 });
